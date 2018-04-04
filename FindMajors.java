@@ -3,6 +3,11 @@ import org.apache.derby.jdbc.ClientDriver;
 
 public class FindMajors {
     public static void main(String[] args) {
+	    	//CS 4432
+		// for our purposes we have a configuration where
+		// the first argument is set to 'drama' to verify the changing of student 'amy'
+		// from "ChangeMajor.java". When testing not in IntelliJ you may have to alter
+		// a configuration. We are unsure of what would happen if the files were ran in Eclipse or another IDE
 		String major = args[0];
 		System.out.println("Here are the " + major + " majors");
 		System.out.println("Name\tGradYear");
