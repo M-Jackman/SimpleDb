@@ -19,6 +19,7 @@ public class Buffer {
    private int pins = 0;
    private int modifiedBy = -1;  // negative means not modified
    private int logSequenceNumber = -1; // negative means no corresponding log record
+   private int pinLocation = -1 ; // Sam Huang: 2.1
 
    /**
     * Creates a new buffer, wrapping a new 
@@ -74,6 +75,17 @@ public class Buffer {
     * @param txnum the id of the transaction performing the modification
     * @param lsn the LSN of the corresponding log record
     */
+
+
+   // Sam Huang: 2.1
+   public int getPinlocation() {
+      return pinLocation ;
+   }
+
+   public void changePinlocation(int location) {
+      pinLocation = location ;
+   }
+
    public void setInt(int offset, int val, int txnum, int lsn) {
       modifiedBy = txnum;
       if (lsn >= 0)
