@@ -58,6 +58,11 @@ class BasicBufferMgr {
     * @param blk a reference to a disk block
     * @return the pinned buffer
     */
+   // CS 4432
+    // To keep track of which block is pinned,
+    // the pin value is checked to see if the file is already pinned or not
+    // The pinning mechanism is already set up such that it is not a static boolean value
+    // and can be adjusted to comply with section 2.4 from the project document specifications
    synchronized Buffer pin(Block blk) {
       Buffer buff = findExistingBuffer(blk);
       if (buff == null) {
@@ -98,8 +103,11 @@ class BasicBufferMgr {
     * @param buff the buffer to be unpinned
     */
 
-   // Sam Huang: 2.1
-   // When it unpins, you need to change it in the bit array as well as remove the pin location within the buffer class
+    // CS 4432: 2.1
+    // When it unpins, you need to change it in the bit array as well as remove the pin location within the buffer class
+    // The pin value is treated as a numerical value in this instance
+    // to comply with section 2.4 of the project requirements
+    // Once the block has been unpinned the counter of available spaces increments
    synchronized void unpin(Buffer buff) {
       int pinLocation = buff.getPinlocation() ;
       freeframes[pinLocation] = 0 ;
