@@ -86,10 +86,6 @@ class BasicBufferMgr {
             return null;
          buff.assignToBlock(blk);
 
-         // CS4432-Project1:
-         // Updating bit array (Representing Pins) HERE
-         //freeframes[buff.getbufferLocation()] = 1 ;
-
          // CS4432-Project1: Add reference to block in table for faster access in future calls to
          // Adding to the hashtable for future lookups HERE
          currentBuffers.put(blk, buff.getbufferLocation());
@@ -120,9 +116,7 @@ class BasicBufferMgr {
          return null;
       buff.assignToNew(filename, fmtr);
 
-      // CS4432-Project1
-      // updating pins again since something was pinned HERE
-      //freeframes[buff.getbufferLocation()] = 1 ;
+
 
       // CS4432-Project1: Add reference to block in table for faster access in future calls to
       // Adding to the hashtable for future lookups HERE
@@ -144,16 +138,6 @@ class BasicBufferMgr {
     * @param buff the buffer to be unpinned
     */
    synchronized void unpin(Buffer buff) {
-
-      // CS4432-Project1
-      // Updating freeframes since one is being unpinned HERE
-      //if (buff.getbufferLocation() != null){
-      //   int frameLocation = buff.getbufferLocation() ;
-      //   freeframes[frameLocation] = 0 ;
-      //}
-
-      //buff.changebufferLocation(-1) ;
-
 
       buff.unpin();
       if (!buff.isPinned())
@@ -205,6 +189,7 @@ class BasicBufferMgr {
    public int Clockreplacement( Buffer[] bufferPool ) {
       int result = -1; // we are going to return this
       Buffer currentBuffer; // So the clock can spin for more than 1 loop, so we are using a while loop here
+      int totalBuffers = bufferPool.length ;
       while (result == -1) {
          currentBuffer = bufferPool[ clockPointer ];
          if( currentBuffer.isPinned() == false ) {
@@ -215,7 +200,9 @@ class BasicBufferMgr {
                result = clockPointer; // Selection!
             }
          }
-         clockPointer = ( clockPointer + 1 ) % bufferPool.length; // increment as well as mod
+         if (clockPointer > totalBuffers) {
+            clockPointer = clockPointer - totalBuffers ;
+         }
       }
       return result; // Return the index for the buffer that will be replaced
    }
@@ -289,7 +276,7 @@ class BasicBufferMgr {
    public String toString(){
       String info = new String();
       for (Buffer buff : bufferpool){
-         info += buff.toString() + System.getProperty("line.separator");
+         info = info + buff.toString() + System.getProperty("line.separator");
       }
       return info;
    }

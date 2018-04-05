@@ -277,9 +277,9 @@ public class Buffer {
 
       String info = "Buffer: " + bufferLocation + ", Pin: " + pins + ", Block: ";
       if (block != null){
-         info += block.toString();
+         info = info + block.toString();
       } if (block == null) {
-         info += "Not currently assigned block";
+         info = info + "Not currently assigned block";
       }
 
       return info;
