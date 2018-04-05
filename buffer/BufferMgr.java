@@ -38,7 +38,15 @@ public class BufferMgr {
    public BufferMgr(int numbuffers) {
       bufferMgr = new BasicBufferMgr(numbuffers);
    }
-   
+
+   /**
+    * CS4432-Project1:
+    * returns information about buffer id, block, and pin status
+    */
+   public String toString(){
+      return bufferMgr.toString();
+   }
+
    /**
     * Pins a buffer to the specified block, potentially
     * waiting until a buffer becomes available.

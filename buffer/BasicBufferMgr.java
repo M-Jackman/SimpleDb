@@ -1,7 +1,11 @@
 package simpledb.buffer;
 
 import simpledb.file.*;
-import java.util.Arrays;
+import java.util.Hashtable;
+import java.util.Scanner;;
+
+import java.util.Date;
+
 
 /**
  * Manages the pinning and unpinning of buffers to blocks.
@@ -11,9 +15,16 @@ import java.util.Arrays;
 class BasicBufferMgr {
    private Buffer[] bufferpool;
    private int numAvailable;
-   private int[] freeframes ; // Sam Huang: 2.1
 
-   
+   /**
+    * CS4432-Project1
+    *  So new variables...
+    */
+   private int[] freeframes ; // This is a bit array determining where the pinned locations are
+   private Hashtable<Block, Integer> currentBuffers; // A list of the used frames. Contains both the location in the buffer pool, and the blk from buffer
+   private int replacement_policy ; // LRU vs Clock replacement, upon running create studentDB you will be prompted to choose replacement policy
+   private int clockPointer = 0 ; // important for Clock replacement
+
    /**
     * Creates a buffer manager having the specified number 
     * of buffer slots.
@@ -27,16 +38,25 @@ class BasicBufferMgr {
     * is called first.
     * @param numbuffs the number of buffer slots to allocate
     */
-
-   // Creates a bitmap array to help find free frames. (2.1)
    BasicBufferMgr(int numbuffs) {
       bufferpool = new Buffer[numbuffs];
       numAvailable = numbuffs;
-      freeframes = new int[numbuffs]; // 0 is free, 1 is taken, Sam Huang: 2.1
+
+      //CS4432-Project1: freeframes refers to unpinned frames
+      freeframes = new int[numbuffs]; // 0 is free, 1 is taken
+      currentBuffers = new Hashtable<Block, Integer>(numbuffs);
       for (int i=0; i<numbuffs; i++) {
          bufferpool[i] = new Buffer();
          freeframes[i] = 0;
+
       }
+
+      Scanner reader = new Scanner(System.in);  // Reading from System.in
+      System.out.println("Choose Replacement Policy, 1 for LRU 2 for clock: ");
+      int n = reader.nextInt(); // Scans the next token of the input as an int.
+      replacement_policy = n ;
+      reader.close();
+
    }
    
    /**
@@ -61,15 +81,27 @@ class BasicBufferMgr {
    synchronized Buffer pin(Block blk) {
       Buffer buff = findExistingBuffer(blk);
       if (buff == null) {
-         buff = chooseUnpinnedBuffer(1); // 1 represents pinning, Sam Huang: 2.1
+         buff = chooseUnpinnedBuffer();
          if (buff == null)
             return null;
          buff.assignToBlock(blk);
-         freeframes[buff.getPinlocation()] = 1 ;// Sam Huang: 2.1
+
+         // CS4432-Project1:
+         // Updating bit array (Representing Pins) HERE
+         //freeframes[buff.getbufferLocation()] = 1 ;
+
+         // CS4432-Project1: Add reference to block in table for faster access in future calls to
+         // Adding to the hashtable for future lookups HERE
+         currentBuffers.put(blk, buff.getbufferLocation());
       }
       if (!buff.isPinned())
          numAvailable--;
       buff.pin();
+
+      // CS4432-Project1
+      // Set Ref
+      buff.changeRef(1);
+
       return buff;
    }
    
@@ -83,13 +115,27 @@ class BasicBufferMgr {
     * @return the pinned buffer
     */
    synchronized Buffer pinNew(String filename, PageFormatter fmtr) {
-      Buffer buff = chooseUnpinnedBuffer(1); // 1 represents pinning, Sam Huang: 2.1
+      Buffer buff = chooseUnpinnedBuffer();
       if (buff == null)
          return null;
       buff.assignToNew(filename, fmtr);
-      freeframes[buff.getPinlocation()] = 1 ; // Sam Huang: 2.1
+
+      // CS4432-Project1
+      // updating pins again since something was pinned HERE
+      //freeframes[buff.getbufferLocation()] = 1 ;
+
+      // CS4432-Project1: Add reference to block in table for faster access in future calls to
+      // Adding to the hashtable for future lookups HERE
+      currentBuffers.put(buff.block(), buff.getbufferLocation());
+
+
       numAvailable--;
       buff.pin();
+
+      // CS4432-Project1
+      // Set Ref for clock replacement
+      buff.changeRef(1);
+
       return buff;
    }
    
@@ -97,16 +143,22 @@ class BasicBufferMgr {
     * Unpins the specified buffer.
     * @param buff the buffer to be unpinned
     */
-
-   // Sam Huang: 2.1
-   // When it unpins, you need to change it in the bit array as well as remove the pin location within the buffer class
    synchronized void unpin(Buffer buff) {
-      int pinLocation = buff.getPinlocation() ;
-      freeframes[pinLocation] = 0 ;
-      buff.changePinlocation(-1);
+
+      // CS4432-Project1
+      // Updating freeframes since one is being unpinned HERE
+      //if (buff.getbufferLocation() != null){
+      //   int frameLocation = buff.getbufferLocation() ;
+      //   freeframes[frameLocation] = 0 ;
+      //}
+
+      //buff.changebufferLocation(-1) ;
+
+
       buff.unpin();
       if (!buff.isPinned())
          numAvailable++;
+
    }
    
    /**
@@ -117,22 +169,65 @@ class BasicBufferMgr {
       return numAvailable;
    }
 
-   // 2.2
+   // CS4432-Project1
+   // This is where part 2.2 is basically done. Note that the frame num is contained within
+   // the buffer object as bufferLocation
    private Buffer findExistingBuffer(Block blk) {
-      for (Buffer buff : bufferpool) {
-         Block b = buff.block();
-         if (b != null && b.equals(blk))
-            return buff;
+
+      Integer i = currentBuffers.get(blk) ;
+
+      if (i == null) {
+         return null ;
       }
-      return null;
+
+      return bufferpool[i] ;
    }
 
-   // 2.1, 2.3
-   //
-   // Sam Huang: 2.1
-   // Implemented the use of a bitmap array to make finding an open buffer space quicker
-   // When calling, set pin = 1 when you want to pin the buffer, or pin = 0 for just opening and reading
-   private Buffer chooseUnpinnedBuffer(int pin) {
+   // CS4432-Project1
+   // LRU Policy.
+   public int LRUreplacement(Buffer[] bufferpool) {
+      int result = 0;
+      int totalSize = bufferpool.length ;
+      Date leastRecentlyUsedDate = bufferpool[0].getLastAccess();
+
+      for (int counter = 0; counter < totalSize; counter++) {
+         if (bufferpool[counter].isPinned() == false)
+            if (bufferpool[counter].getLastAccess() == leastRecentlyUsedDate) {
+            result = counter;
+         }
+      }
+      return result; // Return the index of the least recently used buffer
+   }
+
+   // CS4432-Project1
+   // Clock Policy.
+   // Note that the Clock pointer is a global.
+   public int Clockreplacement( Buffer[] bufferPool ) {
+      int result = -1; // we are going to return this
+      Buffer currentBuffer; // So the clock can spin for more than 1 loop, so we are using a while loop here
+      while (result == -1) {
+         currentBuffer = bufferPool[ clockPointer ];
+         if( currentBuffer.isPinned() == false ) {
+            if( currentBuffer.getReferance() == 1 ) {
+               currentBuffer.changeRef(0);
+            }
+            else {
+               result = clockPointer; // Selection!
+            }
+         }
+         clockPointer = ( clockPointer + 1 ) % bufferPool.length; // increment as well as mod
+      }
+      return result; // Return the index for the buffer that will be replaced
+   }
+
+
+   // CS4432-Project1
+   // Changed most of this function, functionality should still be there
+   // When this is run, a buffer location is given to the returned buffer inside the buffer manage, as
+   // it is assumed this buffer is going to be used when this function is called
+   private Buffer chooseUnpinnedBuffer() {
+
+
       if (freeframes == null) {
          return null ;
       }
@@ -143,32 +238,59 @@ class BasicBufferMgr {
          }
       }
 
-      if (bufferLocation == -1) {
+      if (bufferLocation == -1) { // if there isn't an empty frame...
+         if (numAvailable == 0){ // First check if there are unpinned buffers.
+            bufferLocation = -1 ;
+         } else{
+
+            // CS4432-Project1:
+            // Replacement Policy, LRU. Clock is used for least recently use tracker
+            // Also, this presupposes there is indeed an unpinned buffer, which should
+            // have been checked earlier in this function
+            if (replacement_policy == 1) {
+               bufferLocation = LRUreplacement(bufferpool) ;
+            }
+            if (replacement_policy == 2) {
+               bufferLocation = Clockreplacement(bufferpool) ;
+            }
+            else {
+               bufferLocation = -1 ;
+            }
+
+
+         }
+
+      }
+
+      if (bufferLocation != -1) { // if there is an empty frame
+         Buffer buff = bufferpool[bufferLocation];
+         buff.changebufferLocation(bufferLocation);
+
+         //freeframes[bufferLocation] = 0 ;
+
+         if (buff.block() != null) {
+            currentBuffers.remove(buff.block());
+         }
+
+         return buff;
+      }
+
+      else {
          return null ;
       }
 
-      Buffer buff = bufferpool[bufferLocation] ;
-      if (pin == 1) {
-         buff.changePinlocation(bufferLocation);
-      }
-
-      return buff ;
-
-      //for (Buffer buff : bufferpool)
-      //   if (!buff.isPinned())
-      //   return buff;
-      //return null;
-   }
-
-   // Sam Huang: 2.2
-   private boolean check_disk_existance(Buffer buff) {
-      if (buff.getPinlocation() == -1) {
-         return false ;
-      }
-      else {
-         return true ;
-      }
    }
 
 
+   /**
+    * CS4432-Project1:
+    * Returns information about each buffer's id, block, and pin status
+    */
+   public String toString(){
+      String info = new String();
+      for (Buffer buff : bufferpool){
+         info += buff.toString() + System.getProperty("line.separator");
+      }
+      return info;
+   }
 }
